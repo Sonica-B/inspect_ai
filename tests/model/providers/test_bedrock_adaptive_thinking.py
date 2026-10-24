@@ -41,6 +41,7 @@ CLAUDE_37 = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 CLAUDE_3_SONNET = "anthropic.claude-3-sonnet-20240229-v1:0"
 NOVA_2_LITE = "amazon.nova-2-lite-v1:0"
 GPT_OSS = "openai.gpt-oss-120b-1:0"
+GPT_5_6 = "us.openai.gpt-5.6-sol"
 
 
 # --- adaptive thinking on frontier Claude ---------------------------------
@@ -167,6 +168,52 @@ def test_gpt_oss_unaffected():
     config = GenerateConfig(reasoning_effort="low")
     fields = api.reasoning_config(config)
     assert fields == {"reasoning_effort": "low"}
+
+
+# --- reasoning_effort on a family with no mapping --------------------------
+
+
+def _capture_warn_once(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.bedrock.warn_once",
+        lambda _logger, message: warnings.append(message),
+    )
+    return warnings
+
+
+def test_unmapped_family_reasoning_effort_warns_and_is_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Regression test for issue #5302: GPT-5.6 silently ignored reasoning_effort."""
+    warnings = _capture_warn_once(monkeypatch)
+    api = _make_api(GPT_5_6)
+
+    assert api.reasoning_config(GenerateConfig(reasoning_effort="high")) == {}
+    assert warnings == [
+        f"bedrock model '{GPT_5_6}' does not support 'reasoning_effort'; ignoring it."
+    ]
+
+
+def test_unmapped_family_without_reasoning_effort_does_not_warn(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    warnings = _capture_warn_once(monkeypatch)
+    api = _make_api(GPT_5_6)
+
+    assert api.reasoning_config(GenerateConfig()) == {}
+    assert warnings == []
+
+
+@pytest.mark.parametrize("model_name", [CLAUDE_46, NOVA_2_LITE, GPT_OSS])
+def test_mapped_families_do_not_warn_about_reasoning_effort(
+    model_name: str, monkeypatch: pytest.MonkeyPatch
+):
+    warnings = _capture_warn_once(monkeypatch)
+    api = _make_api(model_name)
+
+    assert api.reasoning_config(GenerateConfig(reasoning_effort="high")) != {}
+    assert warnings == []
 
 
 # --- reasoning_effort + reasoning_tokens precedence -----------------------

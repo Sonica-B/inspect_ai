@@ -1038,6 +1038,14 @@ class BedrockAPI(ModelAPI):
                     f"bedrock model '{self.model_name}' does not support "
                     "'reasoning_effort'; ignoring it.",
                 )
+        elif config.reasoning_effort is not None:
+            # No other family has a mapping (e.g. OpenAI GPT-5.6): say so rather
+            # than silently accepting a setting that has no effect. See issue #5302.
+            warn_once(
+                logger,
+                f"bedrock model '{self.model_name}' does not support "
+                "'reasoning_effort'; ignoring it.",
+            )
 
         return {}
 
